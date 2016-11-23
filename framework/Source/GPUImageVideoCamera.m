@@ -876,7 +876,24 @@ void setColorConversion709( GLfloat conversionMatrix[9] )
     }
     else if (captureOutput == audioOutput)
     {
-        [self processAudioSampleBuffer:sampleBuffer];
+        if (dispatch_semaphore_wait(frameRenderingSemaphore, DISPATCH_TIME_NOW) != 0)
+        {
+            return;
+        }
+        
+        CFRetain(sampleBuffer);
+        runAsynchronouslyOnVideoProcessingQueue(^{
+            //Feature Detection Hook.
+            if (self.delegate)
+            {
+                [self.delegate willOutputAudioSampleBuffer:sampleBuffer];
+            }
+            
+            [self processAudioSampleBuffer:sampleBuffer];
+            
+            CFRelease(sampleBuffer);
+            dispatch_semaphore_signal(frameRenderingSemaphore);
+        });
     }
     else
     {
